@@ -5,6 +5,9 @@ features:
   - feature: deployment script need to be adaptible, if new packages are installed then it should do 'pnpm install' or if no new packages are installed then it should skip it
   - fix: in the webhook payload, github sends all the commits + head_commit in the push, head_commit is only the latest commit happened in the push, so we need to check each commit and if packages.json appears in any(created,removed,modified) then we will mark installation as required
 
+  - feature: on deployment success/fail, notify developer with the summary + few logs on telegram
+  - fix: created a new telegram bot with bot-father, used the chatId and botToken to message in the chat about the deployment, created sturctured meaningful summary + logs for better understanding
+
 issues: 
   - issue: on using 'heredoc', many variables like pnpm,pm2,node were not getting found as they are installed in the home directory, not typical /usr/bin etc.
   - fix: before using them, exported the required env variables directories + added to path in that terminal session, now it worked

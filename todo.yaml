@@ -1,1 +1,4 @@
-- on deployment success/fail, notify developer using telegram
+- make the ci/cd server to work for any repository
+
+DONE:
+  - on deployment success/fail, notify developer using telegram

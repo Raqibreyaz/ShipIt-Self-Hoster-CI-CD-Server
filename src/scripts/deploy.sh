@@ -19,7 +19,7 @@ BACKEND_DIR="$REPO_DIR/Backend"
 LOG_DIR="$HOME/deploy-logs"
 LOG_FILE="$LOG_DIR/storraBackend-$(date +%Y%m%d-%H%M%S).log"
 
-# all log files will go this directory
+# all log files will go to this directory
 mkdir -p "$LOG_DIR"
 
 # all error/log will be written to this file

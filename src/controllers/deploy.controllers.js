@@ -1,7 +1,10 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
 import redisClient from "../config/redis.config.js";
-import verifyGithubWebhookSignature from "../helpers/verifyGithubWebhookSignature.js";
+import verifyGithubWebhookSignature from "../helpers/verifyGithubWebhookSignature.helpers.js";
+import notifyDeveloper from "../service/notifyDeveloper.service.js";
+import checkChangesAndInstallationRequirement from "../helpers/checkChangesAndInstallationRequirement.helpers.js";
+import { tailLogs } from "../helpers/notifyLogs.helpers.js";
 
 export const githubWebhook = async (req, res) => {
   const signature = req.headers["x-hub-signature-256"];
@@ -28,7 +31,10 @@ export const githubWebhook = async (req, res) => {
 
   // ignore if the event already processed
   const inserted = await redisClient.set(`github:webhook:${deliveryId}`, "1", {
-    expiration: { type: "EX", value: 60 * 15 },
+    expiration: {
+      type: "EX",
+      value: 60 * 15,
+    },
     condition: "NX",
   });
   if (inserted === null) {
@@ -38,37 +44,39 @@ export const githubWebhook = async (req, res) => {
 
   const payload = JSON.parse(req.body.toString("utf-8"));
 
-  console.log("checking backend changes...");
+  const { hasChanges, shouldInstall } = checkChangesAndInstallationRequirement(
+    payload.commits,
+  );
 
-  const changedFiles = payload.commits.flatMap((commit) => [
-    ...commit.added,
-    ...commit.removed,
-    ...commit.modified,
-  ]);
-
-  const hasChanges = changedFiles.some((f) => {
-    const name = f.toLowerCase();
-    return name.startsWith("backend/") && !name.endsWith(".md");
-  });
   // skip if no changes done in backend
   if (!hasChanges) {
-    console.log("no changes in backend, ignoring deployment!!");
     return res.sendStatus(200);
   }
-
-  // do 'pnpm install' when package.json changed
-  console.log("checking new packages installation requirement...");
-  const shouldInstall = changedFiles.some((f) => {
-    const name = f.toLowerCase();
-    return name === "backend/package.json" || name === "backend/pnpm-lock.yaml";
-  });
-
-  if (!shouldInstall) console.log("no new package installation required!!");
 
   // sending early ACK to github
   res.sendStatus(200);
 
   const scriptPath = path.join(import.meta.dirname, "..", "scripts/deploy.sh");
+
+  const startedAt = Date.now();
+  const headCommit =
+    payload.head_commit || payload.commits[payload.commits.length - 1];
+
+  const context = {
+    repo: payload.repository?.full_name,
+    branch: payload.ref?.replace("refs/heads/", ""),
+    commitMessage: headCommit?.message,
+    pusher: payload.pusher?.name || payload.sender?.login,
+    deliveryId,
+    shouldInstall,
+  };
+
+  await notifyDeveloper({
+    status: "started",
+    ...context,
+    startedAt: new Date(startedAt).toISOString(),
+    summary: `Deployment started for ${context.repo} on branch ${context.branch}`,
+  });
 
   let stdErrBuf = "";
   let stdOutBuf = "";
@@ -86,32 +94,58 @@ export const githubWebhook = async (req, res) => {
     process.stdout.write(chunk);
   });
 
-  childProcess.on("close", (code, signal) => {
+  childProcess.on("close", async (code, signal) => {
+    const finishedAt = Date.now();
+    const durationMs = finishedAt - startedAt;
+    const combinedLogs = `${stdOutBuf}\n${stdErrBuf}`.trim();
+
     if (code === 0) {
-      return console.log("Script executed successfully!");
+      console.log("Script executed successfully!");
+
+      return await notifyDeveloper({
+        status: "success",
+        ...context,
+        startedAt: new Date(startedAt).toISOString(),
+        finishedAt: new Date(finishedAt).toISOString(),
+        durationMs,
+        exitCode: code,
+        signal,
+        summary: `Deployment succeeded for ${context.repo} on branch ${context.branch} in ${Math.round(durationMs / 1000)}s`,
+        logExcerpt: tailLogs(combinedLogs, 30, 4000),
+      });
     }
 
-    const error = new Error(
-      `Deployment script failed with code=${code ?? null} signal=${signal ?? null}`,
-    );
+    await notifyDeveloper({
+      status: "failed",
+      ...context,
+      startedAt: new Date(startedAt).toISOString(),
+      finishedAt: new Date(finishedAt).toISOString(),
+      durationMs,
+      exitCode: code,
+      signal,
+      summary: `Deployment failed for ${context.repo} on branch ${context.branch} with exit code ${code ?? "null"}`,
+      logExcerpt: tailLogs(combinedLogs || "no logs captured!", 80, 8000),
+    });
 
-    console.log("Script failed!", error);
-    // notifyDeveloper(error, {
-    //   deliveryId,
-    //   eventType,
-    //   branch: payload.ref,
-    //   shouldInstall,
-    //   stderr: stdErrBuf,
-    // });
+    console.log("Script failed!");
   });
-  childProcess.on("error", (error) => {
+  childProcess.on("error", async (error) => {
     console.log("Error in spawning the process!", error);
-    // notifyDeveloper(error, {
-    //   deliveryId,
-    //   eventType,
-    //   branch: payload.ref,
-    //   shouldInstall,
-    //   stderr: stdErrBuf,
-    // });
+
+    const finishedAt = Date.now();
+    const durationMs = finishedAt - startedAt;
+    await notifyDeveloper({
+      status: "failed",
+      ...context,
+      startedAt: new Date(startedAt).toISOString(),
+      finishedAt: new Date(finishedAt).toISOString(),
+      durationMs,
+      exitCode: null,
+      signal: null,
+      summary: `Deployment process could not start: ${error.message}`,
+      logExcerpt: tailLogs(
+        `${stdOutBuf}\n${stdErrBuf}\n${error.stack || error.message}`,
+      ),
+    });
   });
 };

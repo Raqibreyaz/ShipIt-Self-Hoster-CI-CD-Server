@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^5.2.1",
+    "node-telegram-bot-api": "^0.67.0",
     "redis": "^5.12.1"
   }
 }
