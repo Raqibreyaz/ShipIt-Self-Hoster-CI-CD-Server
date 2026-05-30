@@ -1,4 +1,4 @@
-export function createLogCollector(limit = 12_000) {
+export default function createLogCollector(limit = 12_000) {
   let stdout = "";
   let stderr = "";
 

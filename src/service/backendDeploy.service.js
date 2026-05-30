@@ -20,7 +20,7 @@ import setDeployStatus from "./deployStatus.service.js";
 //     fullLog:    string,   // combined stdout+stderr (up to collector limit)
 //   }
 // ---------------------------------------------------------------------------
-export async function runDeployment(deployConfig, deliveryId,commitSha) {
+export async function runDeployment(deployConfig, deliveryId, commitSha) {
   const sshClient = new NodeSSH();
   const logCollector = createLogCollector();
   const startedAt = new Date();
