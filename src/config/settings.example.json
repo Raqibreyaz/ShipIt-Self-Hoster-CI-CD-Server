@@ -26,6 +26,26 @@
   },
   {
     "trigger": {
+      "owner": "Raqibreyaz",
+      "context": "deploy/backend",
+      "repo": "Raqibreyaz/Storra",
+      "events": ["push", "pull_request"],
+      "branch": "main"
+    },
+    "workflow": {
+      "workDir": "Backend/",
+      "install": "pnpm install --frozen-lockfile",
+      "reload": "pm2 startOrReload ecosystem.config.js",
+      "packageManifest": ["package.json", "pnpm-lock.yaml"]
+    },
+    "target": {
+      "type": "local",
+      "healthUrl": "127.0.0.1:8080/health",
+      "projectPath": "/home/ubuntu/Storra"
+    }
+  },
+  {
+    "trigger": {
       "context": "deploy/frontend",
       "repo": "Raqibreyaz/Storra",
       "events": ["push", "pull_request"],

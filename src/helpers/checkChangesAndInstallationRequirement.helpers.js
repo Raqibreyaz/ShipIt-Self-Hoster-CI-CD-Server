@@ -10,11 +10,13 @@ export default function checkChangesAndInstallationRequirement(
 
   // Guard against commits that don't include all three arrays (GitHub can omit
   // empty ones), and normalise every path to lowercase up-front.
-  const changedFiles = commits.flatMap((commit) => [
-    ...(commit.added    ?? []),
-    ...(commit.removed  ?? []),
-    ...(commit.modified ?? []),
-  ]).map((f) => f.toLowerCase());
+  const changedFiles = commits
+    .flatMap((commit) => [
+      ...(commit.added ?? []),
+      ...(commit.removed ?? []),
+      ...(commit.modified ?? []),
+    ])
+    .map((f) => f.toLowerCase());
 
   console.log(`[checkChanges] Checking "${deployDirectory}" for changes…`);
 
@@ -22,12 +24,13 @@ export default function checkChangesAndInstallationRequirement(
   const normalizedDir = deployDirectory?.toLowerCase() ?? "";
   const hasChanges =
     !normalizedDir ||
-    changedFiles.some(
-      (f) => f.startsWith(normalizedDir) && !f.endsWith(".md"),
-    );
+    normalizedDir === "/" ||
+    changedFiles.some((f) => f.startsWith(normalizedDir) && !f.endsWith(".md"));
 
   if (!hasChanges) {
-    console.log(`[checkChanges] No relevant changes in "${deployDirectory}" — skipping.`);
+    console.log(
+      `[checkChanges] No relevant changes in "${deployDirectory}" — skipping.`,
+    );
     return { hasChanges: false, shouldInstall: false };
   }
 
@@ -45,7 +48,9 @@ export default function checkChangesAndInstallationRequirement(
     );
 
   if (!shouldInstall) {
-    console.log("[checkChanges] No package manifest changed — install step skipped.");
+    console.log(
+      "[checkChanges] No package manifest changed — install step skipped.",
+    );
   }
 
   return { hasChanges, shouldInstall };
