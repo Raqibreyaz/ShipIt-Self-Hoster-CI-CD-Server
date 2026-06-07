@@ -1,4 +1,4 @@
-features:
+  features:
   - feature: deploying a remote server when a push event triggered
   - how: used github webhooks to get notified on push event, did 'ssh' into the remote server and pulled the latest changes and deployed the server
 
@@ -39,6 +39,18 @@ features:
     - on building the project, sync the build to the s3 bucket and invalidate cloudfront cache
     - spawn a new process, pass the deploy script to it
     - for every event, error/success/close(with/without error), handle the deployment status and return the deployment context with logs accordingly
+
+  - feature: Make the ci/cd server to be adaptable on deploying local apps vs remote apps via ssh, for local apps just running the commands for deployment is enough, no need to SSH
+  - how: based on the config, type: 'ssh' | 'local', we will take the corresponding deploymentRunner, while commands will remain as it is, the deployment runner will be responsible to SSH and run commands
+    const runCommand =
+    deployConfig.target.type === "ssh"?
+     sshAndGetCommandRunner(
+        deployConfig.target.auth.sshKey,
+        deployConfig.target.host,
+        deployConfig.target.username,
+        logCollector,
+      ): getLocalCommandRunner(logCollector);
+      the params for both returned functions will be same, making it adaptable
 
 issues: 
   - issue: on using 'heredoc', many variables like pnpm,pm2,node were not getting found as they are installed in the home directory, not typical /usr/bin etc.

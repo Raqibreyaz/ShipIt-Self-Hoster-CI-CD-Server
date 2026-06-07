@@ -1,7 +1,65 @@
-- deploy the server on the AWS
-- add better logs management using a dedicate DB(non in-memory)
-- add adaptability if ci/cd server is running on the same machine as the deploying server is then no SSH is required.
-- make it capable to work with private repos also
+Features(to work on): 
+  - Deployment Queue (Per Target)
+    - One queue per deployment target (backend-main, backend-test, frontend-main etc.)
+    - Same target = sequential, different targets = parallel
+    - Prevents race conditions on symlinks, pnpm install, and PM2 reloads
+
+  - Web Dashboard
+    - Deployment history with status (pending/success/failure) per branch
+    - Live log streaming per deployment
+    - Manual rollback button
+    - Manual re-trigger button (no need to push an empty commit)
+
+  - Persistent Log Storage
+    - Logs beyond the 7-day Redis TTL should be stored persistently (file system or DB)
+    - Accessible via dashboard with filtering by branch, target, status, date
+
+  - Retry / Re-trigger Mechanism
+    - API endpoint to manually re-trigger a deployment by deliveryId
+    - Exposed as a button in the dashboard
+
+  - Setup CLI (shipit init)
+    - Guided setup script that installs Node, pnpm, PM2
+    - Generates ecosystem.config.js, sets up directory structure (releases/, shared/, current)
+    - Validates SSH connection and env variables before first deploy
+
+  - Configurable Health Check
+    - Support custom health check URL per project (not just /health)
+    - Configurable timeout and accepted status code range
+    - Optional response time threshold to catch slow-but-alive servers
+
+
+Issues(to work on):
+  1. Orphaned Processes on CI Server Restart
+    Spawned child processes (frontend build, local deploy) have no parent after restart
+    Fix: track PIDs, kill orphans on startup, or use a process registry
+
+  2. Concurrent Spawn Resource Contention
+    Frontend pnpm build + backend deploy simultaneously can starve a small VPS
+    Fix: deployment queue + optional CPU/memory limits via spawn options
+
+  3. No Cancellation for In-Progress Deployments
+    Once started, a deployment can't be stopped
+    Fix: store process reference, expose a cancel endpoint that kills the child process and cleans up the partial release directory
+
+  4. Log Collision Risk Still Exists Beyond frontend/backend
+    If multi-project support is added later, deliveryId + suffix won't be unique across projects
+    Fix: prefix with projectId from the start → projectId-deliveryId-frontend
+
+  5. ecosystem.config.js Path Hardcoded Per Project
+    Doesn't scale when multiple projects share the same CI server
+    Fix: generate ecosystem.config.js dynamically per project during setup or storra init
+
+  6. No Notification on Rollback
+    Telegram notifies on deploy success/fail but not explicitly on rollback trigger
+    Fix: add a dedicated rollback notification with the release it reverted to
+
+  7. SSH Session Drops on Long Builds
+    Long frontend builds can timeout the SSH connection mid-execution
+    Fix: use LocalRunner for same-machine builds; for remote, use nohup + poll for completion
+
+LATER:
+  - make it capable to work with private repos also
 
 DONE: 
   - add roll back mechanism to previous working code, when health check fails on deployment
@@ -17,3 +75,8 @@ DONE:
     - how to know which package manager is required?
   - handle logs of pre+post deployment for frontend
   - handle change in logs key in redis for both frontend/backend
+  - deploy the server on the AWS
+  - Runner Abstraction (SSH vs Local)
+    - Create a unified Runner interface with SSHRunner and LocalRunner implementations
+    - Deployment logic calls runner.exec() without caring about the underlying mode
+    - Config-driven: type: 'ssh' | 'local' per deployment target

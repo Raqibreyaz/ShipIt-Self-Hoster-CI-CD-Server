@@ -16,33 +16,37 @@ const octokit = new Octokit({
  * @param {string} opts.description - Short summary, shown next to the icon (max 140 chars)
  * @param {string} opts.targetUrl   - "Details" link GitHub shows next to the status
  */
-export default async function setDeployStatus({
-  owner,
-  repo,
-  sha,
-  state,
-  context,
-  description,
-  targetUrl,
-}) {
-  // skip silently if token not configured
-  if (!process.env.GITHUB_TOKEN) return;
+export default function deployStatusUpdater(
+  repoOwner,
+  deployContext,
+  repoName,
+  commitSha,
+  logsTargetUrl,
+) {
+  return async (state, description) => {
+    try {
+      // skip silently if token not configured
+      if (!process.env.GITHUB_TOKEN) return;
 
-  const { data } = await octokit.repos.createCommitStatus({
-    owner,
-    repo,
-    sha,
-    state, // required
-    context, // the label/name row shown on the commit
-    description, // short text shown next to icon
-    target_url: targetUrl, // "Details" link
-  });
+      const { data } = await octokit.repos.createCommitStatus({
+        owner: repoOwner,
+        repo: repoName,
+        sha: commitSha,
+        state, // required
+        context: deployContext, // the label/name row shown on the commit
+        description, // short text shown next to icon
+        target_url: logsTargetUrl, // "Details" link
+      });
 
-  console.log(`[${data.context}] → ${data.state}`);
-  console.log(`  Description : ${data.description}`);
-  console.log(`  Details URL : ${data.target_url}`);
-  console.log(`  Status URL  : ${data.url}`);
-  return data;
+      console.log(`[${data.context}] → ${data.state}`);
+      console.log(`  Description : ${data.description}`);
+      console.log(`  Details URL : ${data.target_url}`);
+      console.log(`  Status URL  : ${data.url}`);
+      return data;
+    } catch (err) {
+      console.error(`[deployStatus] Failed to update status to ${state}:`, err);
+    }
+  };
 }
 
 // ── Example: lifecycle of a deployment ─────────────────────────────────────

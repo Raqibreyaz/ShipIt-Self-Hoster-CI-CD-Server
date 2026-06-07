@@ -1,7 +1,7 @@
 import path from "node:path";
 import { spawn } from "node:child_process";
 import createLogCollector from "../helpers/createLogCollector.js";
-import setDeployStatus from "./deployStatus.service.js";
+import deployStatusUpdater from "./deployStatus.service.js";
 
 export default async function runFrontendDeployment(
   deployConfig,
@@ -16,31 +16,20 @@ export default async function runFrontendDeployment(
   const repoFullName = deployConfig.trigger.repo;
   const [repoOwner, repoName] = repoFullName.split("/");
 
-  let logsTargetUrl;
-
-  const updateStatus = async (state, description) => {
-    try {
-      await setDeployStatus({
-        owner: repoOwner,
-        context: deployContext,
-        description,
-        repo: repoName,
-        sha: commitSha,
-        state,
-        targetUrl: logsTargetUrl,
-      });
-    } catch (err) {
-      console.error(`[deployStatus] Failed to update status to ${state}:`, err);
-    }
-  };
-
   try {
+    const runId = `${deliveryId}:frontend`;
     const logServerUrl = process.env.LOG_SERVER_URL;
     if (!logServerUrl) {
       throw new Error("Log server URL env var is missing.");
     }
-    const runId = `${deliveryId}:frontend`;
     logsTargetUrl = `${logServerUrl}/logs/${runId}`;
+    const updateStatus = deployStatusUpdater(
+      repoOwner,
+      deployContext,
+      repoName,
+      commitSha,
+      logsTargetUrl,
+    );
 
     await updateStatus("pending", "Frontend Deployment in Progress...");
 

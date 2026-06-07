@@ -95,15 +95,15 @@ export const githubWebhook = async (req, res) => {
     let isFrontend = false;
 
     // Step 1 - execute deployment steps and take the result
-    if (deployConfig.target.type === "ssh") {
-      deployResult = await runBackendDeployment(
+    if (deployConfig.target.type === "s3") {
+      isFrontend = true;
+      deployResult = await runFrontendDeployment(
         deployConfig,
         deliveryId,
         commitSha,
       );
     } else {
-      isFrontend = true;
-      deployResult = await runFrontendDeployment(
+      deployResult = await runBackendDeployment(
         deployConfig,
         deliveryId,
         commitSha,
